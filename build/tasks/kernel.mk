@@ -100,8 +100,8 @@ RECOVERY_KERNEL_DEFCONFIG_SRC := $(KERNEL_DEFCONFIG_DIR)/$(RECOVERY_DEFCONFIG)
 
 ifneq ($(TARGET_KERNEL_ADDITIONAL_CONFIG),)
 KERNEL_ADDITIONAL_CONFIG := $(TARGET_KERNEL_ADDITIONAL_CONFIG)
-KERNEL_ADDITIONAL_CONFIG_SRC := $(KERNEL_DEFCONFIG_DIR)/$(KERNEL_ADDITIONAL_CONFIG)
-    ifeq ("$(wildcard $(KERNEL_ADDITIONAL_CONFIG_SRC))","")
+KERNEL_ADDITIONAL_CONFIG_SRC := $(foreach f,$(KERNEL_ADDITIONAL_CONFIG),$(KERNEL_DEFCONFIG_DIR)/$(f))
+    ifneq ($(words $(wildcard $(KERNEL_ADDITIONAL_CONFIG_SRC))),$(words $(KERNEL_ADDITIONAL_CONFIG_SRC)))
         $(warning TARGET_KERNEL_ADDITIONAL_CONFIG '$(TARGET_KERNEL_ADDITIONAL_CONFIG)' doesn't exist)
         KERNEL_ADDITIONAL_CONFIG_SRC := /dev/null
     endif
@@ -311,7 +311,7 @@ define make-kernel-config
 	$(call internal-make-kernel-target,$(1),savedefconfig)
 	$(hide) if [ ! -z "$(KERNEL_ADDITIONAL_CONFIG)" ]; then \
 			echo "Using additional config '$(KERNEL_ADDITIONAL_CONFIG)'"; \
-			$(KERNEL_SRC)/scripts/kconfig/merge_config.sh -m -O $(1) $(1)/.config $(KERNEL_SRC)/arch/$(KERNEL_ARCH)/configs/$(KERNEL_ADDITIONAL_CONFIG); \
+			$(KERNEL_SRC)/scripts/kconfig/merge_config.sh -m -O $(1) $(1)/.config $(foreach f,$(KERNEL_ADDITIONAL_CONFIG),$(KERNEL_SRC)/arch/$(KERNEL_ARCH)/configs/$(f)); \
 			$(call make-kernel-target,KCONFIG_ALLCONFIG=$(KERNEL_BUILD_OUT_PREFIX)$(1)/.config alldefconfig); \
 		fi
 endef
@@ -394,8 +394,9 @@ $(INTERNAL_VENDOR_RAMDISK_TARGET): $(TARGET_PREBUILT_INT_KERNEL)
 $(KERNEL_OUT):
 	mkdir -p $(KERNEL_OUT)
 
-$(KERNEL_ADDITIONAL_CONFIG_OUT): $(KERNEL_OUT)
-	$(hide) cmp -s $(KERNEL_ADDITIONAL_CONFIG_SRC) $@ || cp $(KERNEL_ADDITIONAL_CONFIG_SRC) $@;
+$(KERNEL_ADDITIONAL_CONFIG_OUT): $(KERNEL_OUT) $(KERNEL_ADDITIONAL_CONFIG_SRC)
+	$(hide) cat $(KERNEL_ADDITIONAL_CONFIG_SRC) > $@.tmp
+	$(hide) cmp -s $@.tmp $@ && rm -f $@.tmp || mv $@.tmp $@
 
 $(KERNEL_CONFIG): $(KERNEL_DEFCONFIG_SRC) $(KERNEL_ADDITIONAL_CONFIG_OUT)
 	@echo "Building Kernel Config"
